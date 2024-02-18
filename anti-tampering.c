@@ -18,7 +18,7 @@
 
     void InitializeAntiDebugging() {
         // ntdll.dll에서 NtQueryInformationProcess 함수 주소를 얻음
-        HMODULE hNtdll = GetModuleHandle(L"ntdll.dll");
+        extern HMODULE hNtdll = GetModuleHandle(L"ntdll.dll");
         if (hNtdll) {
             g_pfnNtQueryInformationProcess = (PFN_NTQUERYINFORMATIONPROCESS)GetProcAddress(hNtdll, "NtQueryInformationProcess");
         }
