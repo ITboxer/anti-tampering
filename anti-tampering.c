@@ -40,7 +40,7 @@ int DetectDebuggerWithTiming() {
     start = __rdtsc();
     Sleep(100);
     end = __rdtsc();
-    if ((end - start) < 100000000) {
+    if ((end - start) >= 100000000) {
         return 1;
     }
     return 0;
@@ -91,7 +91,7 @@ int DetectDebuggerWithTiming() {
     sleep(1);
     clock_gettime(CLOCK_MONOTONIC, &ts);
     end = ts.tv_sec * 1000000000LL + ts.tv_nsec;
-    if ((end - start) < 1000000000) {
+    if ((end - start) >= 1000000000) {
         return 1;
     }
     return 0;
