@@ -1,6 +1,16 @@
 #include "anti_debugging.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+#ifndef _WIN32
+#include <dirent.h>
+#include <sys/stat.h>
+#include<unistd.h>
+#include<time.h>
+#include <debugapi.h>
+#endif
 
 #ifdef _WIN32
 #include <windows.h>
@@ -90,7 +100,7 @@ static PFN_NTQUERYINFORMATIONPROCESS g_pfnNtQueryInformationProcess = NULL;
         return 0;
     }
 
-#elif _LINUX_
+#elif __linux__
     int DetectDebuggerWithProcFS() {
         FILE* f = fopen("/proc/self/status", "r");
         char line[256];
@@ -137,7 +147,7 @@ static PFN_NTQUERYINFORMATIONPROCESS g_pfnNtQueryInformationProcess = NULL;
       if (DetectDebuggerWithTiming()) return 1;
         if (DetectOllyDbg()) return 1;
 
-#ifdef _LINUX_
+#ifdef __linux__
         if (DetectDebuggerWithProcFS()) return 1;
         if (DetectDebuggerWithSignal()) return 1;
 #endif
