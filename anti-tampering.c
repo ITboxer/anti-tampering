@@ -6,19 +6,19 @@
 #include <windows.h>
 #include <winternl.h>
 
-   typedef NTSTATUS(NTAPI* PFN_NTQUERYINFORMATIONPROCESS)(
-        HANDLE ProcessHandle,
+    typedef NTSTATUS(NTAPI* PFN_NTQUERYINFORMATIONPROCESS)(
+        extern HANDLE ProcessHandle,
         PROCESSINFOCLASS ProcessInformationClass,
         PVOID ProcessInformation,
         ULONG ProcessInformationLength,
         PULONG ReturnLength
         );
 
-    PFN_NTQUERYINFORMATIONPROCESS g_pfnNtQueryInformationProcess = NULL;
+static PFN_NTQUERYINFORMATIONPROCESS g_pfnNtQueryInformationProcess = NULL;
 
     void InitializeAntiDebugging() {
         // ntdll.dll에서 NtQueryInformationProcess 함수 주소를 얻음
-        extern HMODULE hNtdll = GetModuleHandle(L"ntdll.dll");
+        HMODULE hNtdll = GetModuleHandle("ntdll.dll");
         if (hNtdll) {
             g_pfnNtQueryInformationProcess = (PFN_NTQUERYINFORMATIONPROCESS)GetProcAddress(hNtdll, "NtQueryInformationProcess");
         }
@@ -26,6 +26,7 @@
     
     int DetectDebuggerWithNTQuery() {
     if (g_pfnNtQueryInformationProcess == NULL) {
+        printf("None dll imported.\n");
         return 0; // 함수가 로드되지 않았으면 탐지를 수행하지 않음
     }
 
@@ -42,14 +43,26 @@
     return 0;
 }
     
+#ifdef _WIN64
+    extern   void Interupt_antiTamper();
+#endif
+
     int DetectDebuggerWithInterrupts() {
         __try {
+#ifdef _WIN64
+            Interupt_antiTamper();
+#endif
+#ifdef _WIN32
+#ifndef _WIN64
             __asm {
-               int 3   // INT3
-               int 0x2D // INT2D
-               int 0x41 // Interrupt 0x41
-               int 1    // SoftICE Interrupt
-            }
+                int 3   // INT3dksi 
+                int 0x2D // INT2D
+                int 0x41 // Interrupt 0x41
+                int 1    // SoftICE Interrupt
+        }
+#endif
+#endif
+
         }
         __except (EXCEPTION_EXECUTE_HANDLER) {
             return 0;
@@ -63,7 +76,7 @@
         start = __rdtsc();
         Sleep(100);
         end = __rdtsc();
-        if ((end - start) >= 1000000000) {
+        if ((end - start) >= 100000000) {
             return 1;
         }
         return 0;
@@ -77,7 +90,7 @@
         return 0;
     }
 
-#elif __linux
+#elif _LINUX_
     int DetectDebuggerWithProcFS() {
         FILE* f = fopen("/proc/self/status", "r");
         char line[256];
@@ -118,16 +131,16 @@
 
 #endif
 
-int DetectDebugger() {
-    if (DetectDebuggerWithNTQuery()) return 1;
-    if (DetectDebuggerWithInterrupts()) return 1;
-    if (DetectDebuggerWithTiming()) return 1;
-    if (DetectOllyDbg()) return 1;
+    int DetectDebugger() {
+       if (DetectDebuggerWithNTQuery()) return 1;
+      if (DetectDebuggerWithInterrupts()) return 1;
+      if (DetectDebuggerWithTiming()) return 1;
+        if (DetectOllyDbg()) return 1;
 
-#ifdef __linux
-    if (DetectDebuggerWithProcFS()) return 1;
-    if (DetectDebuggerWithSignal()) return 1;
+#ifdef _LINUX_
+        if (DetectDebuggerWithProcFS()) return 1;
+        if (DetectDebuggerWithSignal()) return 1;
 #endif
-    
-    return 0;
-}
+
+        return 0;
+    }
