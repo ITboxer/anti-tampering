@@ -141,16 +141,16 @@ static PFN_NTQUERYINFORMATIONPROCESS g_pfnNtQueryInformationProcess = NULL;
 
 #endif
 
-    int DetectDebugger() {
-       if (DetectDebuggerWithNTQuery()) return 1;
-      if (DetectDebuggerWithInterrupts()) return 1;
-      if (DetectDebuggerWithTiming()) return 1;
+int DetectDebugger() {
+#ifdef _WIN32
+        if (DetectDebuggerWithNTQuery()) return 1;
+        if (DetectDebuggerWithInterrupts()) return 1;
+        if (DetectDebuggerWithTiming()) return 1;
         if (DetectOllyDbg()) return 1;
-
+#endif
 #ifdef __linux__
         if (DetectDebuggerWithProcFS()) return 1;
         if (DetectDebuggerWithSignal()) return 1;
 #endif
-
         return 0;
     }
