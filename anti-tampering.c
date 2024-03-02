@@ -94,13 +94,6 @@ static PFN_NTQUERYINFORMATIONPROCESS g_pfnNtQueryInformationProcess = NULL;
         return 0;
     }
 
-    int DetectOllyDbg() {
-        OutputDebugString(TEXT("OLLYDBG"));
-        if (GetLastError() == 0) {
-            return 1;
-        }
-        return 0;
-    }
 
 #elif __linux__
    //proc/self/status 파일을 이용한 디버거 탐지 함수
@@ -173,7 +166,6 @@ int DetectDebugger() {
         if (DetectDebuggerWithNTQuery()) return 1;
         if (DetectDebuggerWithInterrupts()) return 1;
         if (DetectDebuggerWithTiming()) return 1;
-        if (DetectOllyDbg()) return 1;
 #endif
 #ifdef __linux__
         if (DetectDebuggerWithProcFS()) return 1;
