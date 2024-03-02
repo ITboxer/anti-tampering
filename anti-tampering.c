@@ -7,9 +7,11 @@
 #ifndef _WIN32
 #include <dirent.h>
 #include <sys/stat.h>
-#include<unistd.h>
-#include<time.h>
-#include <debugapi.h>
+#include <unistd.h>
+#include <time.h>
+#include <signal.h>
+#include <time.h>
+#include <setjmp.h>
 #endif
 
 #ifdef _WIN32
@@ -41,7 +43,7 @@ static PFN_NTQUERYINFORMATIONPROCESS g_pfnNtQueryInformationProcess = NULL;
     }
 
     HANDLE processHandle = GetCurrentProcess();
-    BOOL debuggerPresent = FALSE;
+     LONG_PTR debuggerPresent = FALSE;
     NTSTATUS status;
     ULONG returnLength;
 
@@ -101,28 +103,54 @@ static PFN_NTQUERYINFORMATIONPROCESS g_pfnNtQueryInformationProcess = NULL;
     }
 
 #elif __linux__
+   //proc/self/status 파일을 이용한 디버거 탐지 함수
     int DetectDebuggerWithProcFS() {
-        FILE* f = fopen("/proc/self/status", "r");
-        char line[256];
 
+    FILE* f = fopen("/proc/self/status", "r");
+        if (f == NULL) {
+            perror("Failed to open /proc/self/status");
+            return -1;
+        }
+
+        char line[256];
         while (fgets(line, sizeof(line), f)) {
             if (strncmp(line, "TracerPid:", 10) == 0) {
                 int pid = atoi(line + 10);
-                if (pid != 0) {
-                    fclose(f);
-                    return 1;
-                }
-                break;
+                fclose(f);
+                return pid != 0;
             }
         }
+
         fclose(f);
         return 0;
     }
 
+
+
+    static sigjmp_buf jump_env;
+
+    // SIGTRAP 시그널 핸들러
+    void sigtrap_handler(int signo) {
+        // SIGTRAP 시그널이 발생하면 여기로 점프
+        siglongjmp(jump_env, 1);
+    }
+
     int DetectDebuggerWithSignal() {
-        signal(SIGTRAP, SIG_IGN);
-        __asm__("int3");
+        // SIGTRAP 시그널 핸들러 설정
+        signal(SIGTRAP, sigtrap_handler);
+
+        if (sigsetjmp(jump_env, 1) == 0) {
+            // 여기서 int3 인스트럭션을 실행하여 SIGTRAP 시그널을 유발
+            __asm__("int3");
+            // 디버거가 없으면, 여기로 돌아와서 정상실행
+            // 디버거가 없다는 것을 나타내기 위해 1 반환
+            return 1;
+        }
+
+         // 디버거가 있으면, sigtrap_handler에서 설정한 siglongjmp에 의해
+        // 여기로 점프합니다. 이 경우, 디버거가 있다는 것을 나타내기 위해 0을 반환합니다.
         return 0;
+        
     }
 
     int DetectDebuggerWithTiming() {
@@ -130,7 +158,6 @@ static PFN_NTQUERYINFORMATIONPROCESS g_pfnNtQueryInformationProcess = NULL;
         unsigned long long start, end;
         clock_gettime(CLOCK_MONOTONIC, &ts);
         start = ts.tv_sec * 1000000000LL + ts.tv_nsec;
-        sleep(1);
         clock_gettime(CLOCK_MONOTONIC, &ts);
         end = ts.tv_sec * 1000000000LL + ts.tv_nsec;
         if ((end - start) >= 1000000000) {
@@ -150,7 +177,8 @@ int DetectDebugger() {
 #endif
 #ifdef __linux__
         if (DetectDebuggerWithProcFS()) return 1;
-        if (DetectDebuggerWithSignal()) return 1;
+        if(DetectDebuggerWithSignal()) return 1;
+        if(DetectDebuggerWithTiming()) return 1;
 #endif
         return 0;
     }
